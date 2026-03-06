@@ -3,8 +3,9 @@ import { View, Text, StyleSheet, TouchableOpacity, Pressable, Platform, Animated
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
+import { useNotifications } from '@/contexts/NotificationContext';
 import { ArrowUpRight, ArrowDownLeft, Settings, X, QrCode, Camera, Copy, RefreshCw, Coins, Send, TrendingUp } from 'lucide-react-native';
-import { useState, useMemo, useCallback, useEffect } from 'react';
+import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 
 import { CameraView, useCameraPermissions } from 'expo-camera';
@@ -19,8 +20,14 @@ export default function WalletScreen() {
   const router = useRouter();
   const insets = useSafeAreaInsets();
   const { balance, address, refreshBalance } = useWallet();
+  const { notifyTransaction } = useNotifications();
 
   const responsive = useResponsive();
+  const prevBalanceRef = useRef<number>(balance);
+  const sendButtonScale = useRef(new Animated.Value(1)).current;
+  const receiveButtonScale = useRef(new Animated.Value(1)).current;
+  const sendButtonGlow = useRef(new Animated.Value(0)).current;
+  const receiveButtonGlow = useRef(new Animated.Value(0)).current;
   const { getQRColors } = useQRColor();
   const { btcPrice } = useBtcPrice();
 
@@ -55,7 +62,7 @@ export default function WalletScreen() {
     if (isRefreshing) return;
     setIsRefreshing(true);
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     try {
       await refreshBalance();
@@ -69,19 +76,11 @@ export default function WalletScreen() {
   useEffect(() => {
     const interval = setInterval(() => {
       console.log('Auto-refresh balance...');
-      refreshBalance();
+      void refreshBalance();
     }, 3.33 * 60 * 1000);
 
     return () => clearInterval(interval);
   }, [refreshBalance]);
-
-
-  
-  const qrColors = useMemo(() => getQRColors(address), [address, getQRColors]);
-
-
-  
-
 
   const getTotalAmount = useCallback((): number => {
     return Object.entries(tokenCounts).reduce((total, [value, count]) => {
@@ -92,10 +91,51 @@ export default function WalletScreen() {
   const totalAmount = useMemo(() => getTotalAmount(), [getTotalAmount]);
   const hasSelectedTokens = totalAmount > 0;
 
+  useEffect(() => {
+    if (prevBalanceRef.current > 0 && balance > prevBalanceRef.current) {
+      const received = balance - prevBalanceRef.current;
+      console.log('Balance increased, received:', received, 'Btcon');
+      void notifyTransaction('received', received);
+    }
+    prevBalanceRef.current = balance;
+  }, [balance, notifyTransaction]);
+
+  useEffect(() => {
+    if (hasSelectedTokens) {
+      Animated.parallel([
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(sendButtonGlow, { toValue: 1, duration: 1200, useNativeDriver: false }),
+            Animated.timing(sendButtonGlow, { toValue: 0, duration: 1200, useNativeDriver: false }),
+          ])
+        ),
+        Animated.loop(
+          Animated.sequence([
+            Animated.timing(receiveButtonGlow, { toValue: 1, duration: 1200, useNativeDriver: false }),
+            Animated.timing(receiveButtonGlow, { toValue: 0, duration: 1200, useNativeDriver: false }),
+          ])
+        ),
+      ]).start();
+    } else {
+      sendButtonGlow.setValue(0);
+      receiveButtonGlow.setValue(0);
+    }
+  }, [hasSelectedTokens, sendButtonGlow, receiveButtonGlow]);
+
+  const animateButtonPress = useCallback((scale: Animated.Value) => {
+    Animated.sequence([
+      Animated.timing(scale, { toValue: 0.9, duration: 80, useNativeDriver: true }),
+      Animated.spring(scale, { toValue: 1, friction: 3, tension: 200, useNativeDriver: true }),
+    ]).start();
+  }, []);
+
+
+  
+  const qrColors = useMemo(() => getQRColors(address), [address, getQRColors]);
 
   const handleTokenPress = useCallback((value: number) => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setTokenCounts(prev => ({
       ...prev,
@@ -105,7 +145,7 @@ export default function WalletScreen() {
 
   const handleTokenLongPress = useCallback((value: number) => {
     if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     setTokenCounts(prev => ({
       ...prev,
@@ -123,15 +163,17 @@ export default function WalletScreen() {
 
   const handleReceive = useCallback(() => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    animateButtonPress(receiveButtonScale);
     router.push({ pathname: '/receive', params: { amount: totalAmount.toString() } });
-  }, [totalAmount, router]);
+  }, [totalAmount, router, animateButtonPress, receiveButtonScale]);
 
   const handleSend = useCallback(() => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
+    animateButtonPress(sendButtonScale);
     router.push({ 
       pathname: '/send', 
       params: { 
@@ -141,7 +183,7 @@ export default function WalletScreen() {
         token50000: tokenCounts[50000].toString()
       } 
     });
-  }, [totalAmount, tokenCounts, router]);
+  }, [totalAmount, tokenCounts, router, animateButtonPress, sendButtonScale]);
 
   const handleOpenScanner = async () => {
     if (!permission?.granted) {
@@ -183,7 +225,7 @@ export default function WalletScreen() {
 
   const handleScanTokenPress = useCallback((value: number) => {
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
     }
     setScannedAmount(0);
     setScanTokenCounts(prev => ({
@@ -194,7 +236,7 @@ export default function WalletScreen() {
 
   const handleScanTokenLongPress = useCallback((value: number) => {
     if (Platform.OS !== 'web') {
-      Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+      void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
     }
     setScanTokenCounts(prev => ({
       ...prev,
@@ -385,35 +427,47 @@ export default function WalletScreen() {
 
 
       <View style={[styles.actionsContainer, !hasSelectedTokens && styles.actionsHidden]}>
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.receiveButton,
-              pressed && styles.actionButtonPressed,
-            ]}
-            onPress={handleReceive}
-            disabled={!hasSelectedTokens}
-          >
-            <View style={styles.iconContainer}>
-              <ArrowDownLeft color="#FFFFFF" size={22} strokeWidth={2.5} />
-            </View>
-            <Text style={styles.actionButtonText}>Recevoir</Text>
-          </Pressable>
+          <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: receiveButtonScale }] }]}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.receiveButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={handleReceive}
+              disabled={!hasSelectedTokens}
+              testID="receive-button"
+            >
+              <View style={styles.iconContainer}>
+                <ArrowDownLeft color="#FFFFFF" size={24} strokeWidth={3} />
+              </View>
+              <Text style={styles.actionButtonText}>Recevoir</Text>
+              {hasSelectedTokens && (
+                <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
+              )}
+            </Pressable>
+          </Animated.View>
 
-          <Pressable
-            style={({ pressed }) => [
-              styles.actionButton,
-              styles.sendButton,
-              pressed && styles.actionButtonPressed,
-            ]}
-            onPress={handleSend}
-            disabled={!hasSelectedTokens}
-          >
-            <View style={styles.iconContainer}>
-              <ArrowUpRight color="#FFFFFF" size={22} strokeWidth={2.5} />
-            </View>
-            <Text style={styles.actionButtonText}>Envoyer</Text>
-          </Pressable>
+          <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: sendButtonScale }] }]}>
+            <Pressable
+              style={({ pressed }) => [
+                styles.actionButton,
+                styles.sendButton,
+                pressed && styles.actionButtonPressed,
+              ]}
+              onPress={handleSend}
+              disabled={!hasSelectedTokens}
+              testID="send-button"
+            >
+              <View style={styles.iconContainer}>
+                <ArrowUpRight color="#FFFFFF" size={24} strokeWidth={3} />
+              </View>
+              <Text style={styles.actionButtonText}>Envoyer</Text>
+              {hasSelectedTokens && (
+                <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
+              )}
+            </Pressable>
+          </Animated.View>
         </View>
 
       <Modal
@@ -687,51 +741,66 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     flexDirection: 'row',
-    gap: 12,
-    paddingHorizontal: 24,
-    paddingTop: 8,
-    paddingBottom: 12,
+    gap: 14,
+    paddingHorizontal: 20,
+    paddingTop: 10,
+    paddingBottom: 16,
     backgroundColor: '#000',
   },
   actionsHidden: {
     opacity: 0,
   },
+  actionButtonWrapper: {
+    flex: 1,
+  },
   actionButton: {
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 14,
-    borderRadius: 16,
+    paddingVertical: 18,
+    borderRadius: 22,
     gap: 6,
-    shadowColor: '#000',
-    shadowOffset: { width: 0, height: 8 },
-    shadowOpacity: 0.5,
-    shadowRadius: 16,
-    elevation: 8,
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 10 },
+    shadowOpacity: 0.6,
+    shadowRadius: 20,
+    elevation: 10,
   },
   receiveButton: {
     backgroundColor: '#FF8C00',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   sendButton: {
-    backgroundColor: '#FF8C00',
+    backgroundColor: '#E8451A',
+    borderWidth: 2,
+    borderColor: 'rgba(255, 255, 255, 0.15)',
   },
   actionButtonPressed: {
-    transform: [{ scale: 0.96 }],
-    opacity: 0.9,
+    opacity: 0.85,
   },
   iconContainer: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    width: 46,
+    height: 46,
+    borderRadius: 23,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 255, 255, 0.25)',
   },
   actionButtonText: {
     color: '#FFFFFF',
-    fontSize: 15,
-    fontWeight: '800' as const,
-    letterSpacing: 0.5,
+    fontSize: 16,
+    fontWeight: '900' as const,
+    letterSpacing: 0.8,
+    textTransform: 'uppercase' as const,
+  },
+  actionButtonAmount: {
+    color: 'rgba(255, 255, 255, 0.75)',
+    fontSize: 11,
+    fontWeight: '700' as const,
+    letterSpacing: 0.3,
   },
   qrContainer: {
     flex: 1,
