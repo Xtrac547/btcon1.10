@@ -439,7 +439,7 @@ export default function WalletScreen() {
               testID="receive-button"
             >
               <View style={styles.iconContainer}>
-                <ArrowDownLeft color="#FFFFFF" size={24} strokeWidth={3} />
+                <ArrowDownLeft color="#FFFFFF" size={28} strokeWidth={3} />
               </View>
               <Text style={styles.actionButtonText}>Recevoir</Text>
               {hasSelectedTokens && (
@@ -460,7 +460,7 @@ export default function WalletScreen() {
               testID="send-button"
             >
               <View style={styles.iconContainer}>
-                <ArrowUpRight color="#FFFFFF" size={24} strokeWidth={3} />
+                <ArrowUpRight color="#FFFFFF" size={28} strokeWidth={3} />
               </View>
               <Text style={styles.actionButtonText}>Envoyer</Text>
               {hasSelectedTokens && (
@@ -741,10 +741,10 @@ const styles = StyleSheet.create({
   },
   actionsContainer: {
     flexDirection: 'row',
-    gap: 14,
-    paddingHorizontal: 20,
-    paddingTop: 10,
-    paddingBottom: 16,
+    gap: 16,
+    paddingHorizontal: 16,
+    paddingTop: 12,
+    paddingBottom: 28,
     backgroundColor: '#000',
   },
   actionsHidden: {
@@ -757,9 +757,9 @@ const styles = StyleSheet.create({
     flex: 1,
     alignItems: 'center',
     justifyContent: 'center',
-    paddingVertical: 18,
-    borderRadius: 22,
-    gap: 6,
+    paddingVertical: 24,
+    borderRadius: 24,
+    gap: 8,
     shadowColor: '#FF8C00',
     shadowOffset: { width: 0, height: 10 },
     shadowOpacity: 0.6,
@@ -780,9 +780,9 @@ const styles = StyleSheet.create({
     opacity: 0.85,
   },
   iconContainer: {
-    width: 46,
-    height: 46,
-    borderRadius: 23,
+    width: 54,
+    height: 54,
+    borderRadius: 27,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
     alignItems: 'center',
     justifyContent: 'center',
@@ -791,14 +791,14 @@ const styles = StyleSheet.create({
   },
   actionButtonText: {
     color: '#FFFFFF',
-    fontSize: 16,
+    fontSize: 18,
     fontWeight: '900' as const,
     letterSpacing: 0.8,
     textTransform: 'uppercase' as const,
   },
   actionButtonAmount: {
     color: 'rgba(255, 255, 255, 0.75)',
-    fontSize: 11,
+    fontSize: 13,
     fontWeight: '700' as const,
     letterSpacing: 0.3,
   },
