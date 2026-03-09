@@ -14,7 +14,7 @@ export default function CoinFlipScreen() {
   const [coinFlipping, setCoinFlipping] = useState(false);
   const [coinResult, setCoinResult] = useState<'heads' | 'tails' | 'fallen' | null>(null);
   const [showCoin, setShowCoin] = useState(true);
-  const [hasFlippedOnce, setHasFlippedOnce] = useState(false);
+  const [_hasFlippedOnce, setHasFlippedOnce] = useState(false);
   const coinRotation = useRef(new Animated.Value(0)).current;
   const coinPosition = useRef(new Animated.Value(0)).current;
   const coinOpacity = useRef(new Animated.Value(1)).current;
@@ -23,7 +23,7 @@ export default function CoinFlipScreen() {
     if (coinFlipping) return;
     
     if (Platform.OS !== 'web') {
-      Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
     }
     
     setCoinFlipping(true);
@@ -65,7 +65,7 @@ export default function CoinFlipScreen() {
         setCoinFlipping(false);
         setShowCoin(false);
         if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         }
       });
     } else {
@@ -82,7 +82,7 @@ export default function CoinFlipScreen() {
         setCoinFlipping(false);
         setShowCoin(true);
         if (Platform.OS !== 'web') {
-          Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
+          void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
       });
     }
@@ -186,15 +186,7 @@ export default function CoinFlipScreen() {
               </TouchableOpacity>
             )}
             
-            {!coinFlipping && coinResult && (
-              <TouchableOpacity
-                style={styles.replayButton}
-                onPress={flipCoin}
-                testID="replay-button"
-              >
-                <Text style={styles.replayButtonText}>REJOUER</Text>
-              </TouchableOpacity>
-            )}
+
           </View>
         </View>
 
