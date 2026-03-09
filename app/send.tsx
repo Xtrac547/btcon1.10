@@ -389,12 +389,7 @@ export default function SendScreen() {
                       </Text>
                       <Text style={styles.coinFlipLostFees}>Frais normaux : 500 Btcon</Text>
                     </View>
-                    <TouchableOpacity
-                      style={styles.coinFlipRetry}
-                      onPress={startFeeFlip}
-                    >
-                      <Text style={styles.coinFlipRetryText}>Retenter ?</Text>
-                    </TouchableOpacity>
+
                   </View>
                 )}
               </View>
