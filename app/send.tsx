@@ -121,7 +121,7 @@ export default function SendScreen() {
     const feeMessage = isDevAddress 
       ? '\n\n✨ Mode développeur : Frais gratuits !' 
       : feesWaived
-        ? '\n\n🎉 Pile ou Face gagné : Frais gratuits !'
+        ? '\n\n🎉 Pile ou Face gagné — le receveur paye les frais !'
         : `\n\nFrais de réseau: ${Math.floor(totalFeesInBtcon).toLocaleString()} Btcon`;
     
     Alert.alert(
