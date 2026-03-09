@@ -1,13 +1,16 @@
 import '@/utils/shim';
 import { useState, useRef, useCallback } from 'react';
-import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView, useWindowDimensions, Platform } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, TextInput, Alert, ActivityIndicator, ScrollView, useWindowDimensions, Platform, Animated, Easing, Image } from 'react-native';
+import { Coins } from 'lucide-react-native';
 import { useRouter, useLocalSearchParams } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
 import { useNotifications } from '@/contexts/NotificationContext';
 import { useDeveloperHierarchy } from '@/contexts/DeveloperHierarchyContext';
 import { ArrowLeft, Send, X, Camera } from 'lucide-react-native';
+const coinImage = require('../assets/images/btcon-icon.png');
 import { CameraView, useCameraPermissions } from 'expo-camera';
 import { useResponsive } from '@/utils/responsive';
+import * as Haptics from 'expo-haptics';
 
 
 export default function SendScreen() {
@@ -29,9 +32,50 @@ export default function SendScreen() {
   const [hasScanned, setHasScanned] = useState(false);
   const [amountBtcon, setAmountBtcon] = useState(params.preselectedAmount ? parseInt(params.preselectedAmount, 10) : 0);
 
+  const [feeFlipState, setFeeFlipState] = useState<'idle' | 'choosing' | 'flipping' | 'won' | 'lost'>('idle');
+  const [feeFlipChoice, setFeeFlipChoice] = useState<'heads' | 'tails' | null>(null);
+  const [feeFlipResult, setFeeFlipResult] = useState<'heads' | 'tails' | null>(null);
+  const [feesWaived, setFeesWaived] = useState(false);
+  const flipAnim = useRef(new Animated.Value(0)).current;
+
 
 
   const totalAmount = amountBtcon;
+
+  const startFeeFlip = () => {
+    setFeeFlipState('choosing');
+    setFeeFlipChoice(null);
+    setFeeFlipResult(null);
+  };
+
+  const doFeeFlip = (choice: 'heads' | 'tails') => {
+    setFeeFlipChoice(choice);
+    setFeeFlipState('flipping');
+    flipAnim.setValue(0);
+
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Medium);
+    }
+
+    const result: 'heads' | 'tails' = Math.random() < 0.5 ? 'heads' : 'tails';
+
+    Animated.timing(flipAnim, {
+      toValue: 1,
+      duration: 1800,
+      easing: Easing.out(Easing.quad),
+      useNativeDriver: true,
+    }).start(() => {
+      setFeeFlipResult(result);
+      const won = result === choice;
+      setFeesWaived(won);
+      setFeeFlipState(won ? 'won' : 'lost');
+      if (Platform.OS !== 'web') {
+        void Haptics.notificationAsync(
+          won ? Haptics.NotificationFeedbackType.Success : Haptics.NotificationFeedbackType.Error
+        );
+      }
+    });
+  };
 
 
 
@@ -71,12 +115,14 @@ export default function SendScreen() {
       return;
     }
 
-    const totalFeesInSats = isDevAddress ? 0 : 500;
-    const totalFeesInBtcon = isDevAddress ? 0 : 500;
+    const totalFeesInSats = isDevAddress ? 0 : (feesWaived ? 0 : 500);
+    const totalFeesInBtcon = isDevAddress ? 0 : (feesWaived ? 0 : 500);
 
     const feeMessage = isDevAddress 
       ? '\n\n✨ Mode développeur : Frais gratuits !' 
-      : `\n\nFrais de réseau: ${Math.floor(totalFeesInBtcon).toLocaleString()} Btcon`;
+      : feesWaived
+        ? '\n\n🎉 Pile ou Face gagné : Frais gratuits !'
+        : `\n\nFrais de réseau: ${Math.floor(totalFeesInBtcon).toLocaleString()} Btcon`;
     
     Alert.alert(
       'Confirmer la transaction',
@@ -252,12 +298,107 @@ export default function SendScreen() {
                   <Text style={styles.freeFeesBadge}>GRATUIT ✨</Text>
                   <Text style={styles.freeFeesText}>0 Btcon</Text>
                 </View>
+              ) : feesWaived ? (
+                <View style={styles.freeFeesContainer}>
+                  <Text style={styles.freeFeesBadge}>GAGNÉ 🎉</Text>
+                  <Text style={styles.freeFeesText}>0 Btcon</Text>
+                </View>
               ) : (
                 <Text style={styles.feesTransactionValue}>
                   500 Btcon
                 </Text>
               )}
             </View>
+
+            {!(address && isDeveloper(address)) && (
+              <View style={styles.coinFlipSection}>
+                {feeFlipState === 'idle' && !feesWaived && (
+                  <TouchableOpacity
+                    style={styles.coinFlipTrigger}
+                    onPress={startFeeFlip}
+                    testID="fee-coin-flip-button"
+                  >
+                    <Coins color="#FFD700" size={20} />
+                    <Text style={styles.coinFlipTriggerText}>Pile ou Face pour les frais ?</Text>
+                  </TouchableOpacity>
+                )}
+
+                {feeFlipState === 'choosing' && (
+                  <View style={styles.coinFlipChoosing}>
+                    <Text style={styles.coinFlipQuestion}>Choisissez votre côté :</Text>
+                    <View style={styles.coinFlipChoices}>
+                      <TouchableOpacity
+                        style={styles.coinFlipChoiceBtn}
+                        onPress={() => doFeeFlip('heads')}
+                      >
+                        <Text style={styles.coinFlipChoiceEmoji}>👑</Text>
+                        <Text style={styles.coinFlipChoiceText}>PILE</Text>
+                      </TouchableOpacity>
+                      <TouchableOpacity
+                        style={styles.coinFlipChoiceBtn}
+                        onPress={() => doFeeFlip('tails')}
+                      >
+                        <Text style={styles.coinFlipChoiceEmoji}>🔄</Text>
+                        <Text style={styles.coinFlipChoiceText}>FACE</Text>
+                      </TouchableOpacity>
+                    </View>
+                  </View>
+                )}
+
+                {feeFlipState === 'flipping' && (
+                  <View style={styles.coinFlipAnimArea}>
+                    <Animated.View
+                      style={[
+                        styles.miniCoin,
+                        {
+                          transform: [
+                            {
+                              rotateX: flipAnim.interpolate({
+                                inputRange: [0, 1],
+                                outputRange: ['0deg', '1800deg'],
+                              }),
+                            },
+                          ],
+                        },
+                      ]}
+                    >
+                      <Image source={coinImage} style={styles.miniCoinImage} resizeMode="cover" />
+                    </Animated.View>
+                    <Text style={styles.coinFlipFlippingText}>La pièce tourne...</Text>
+                  </View>
+                )}
+
+                {feeFlipState === 'won' && (
+                  <View style={styles.coinFlipResultArea}>
+                    <View style={styles.coinFlipWonBadge}>
+                      <Text style={styles.coinFlipWonText}>🎉 GAGNÉ !</Text>
+                      <Text style={styles.coinFlipResultDetail}>
+                        Vous avez choisi {feeFlipChoice === 'heads' ? 'PILE' : 'FACE'} et c'est tombé sur {feeFlipResult === 'heads' ? 'PILE' : 'FACE'}
+                      </Text>
+                      <Text style={styles.coinFlipFreeText}>Personne ne paye les frais !</Text>
+                    </View>
+                  </View>
+                )}
+
+                {feeFlipState === 'lost' && (
+                  <View style={styles.coinFlipResultArea}>
+                    <View style={styles.coinFlipLostBadge}>
+                      <Text style={styles.coinFlipLostText}>😔 PERDU</Text>
+                      <Text style={styles.coinFlipResultDetail}>
+                        Vous avez choisi {feeFlipChoice === 'heads' ? 'PILE' : 'FACE'} mais c'est tombé sur {feeFlipResult === 'heads' ? 'PILE' : 'FACE'}
+                      </Text>
+                      <Text style={styles.coinFlipLostFees}>Frais normaux : 500 Btcon</Text>
+                    </View>
+                    <TouchableOpacity
+                      style={styles.coinFlipRetry}
+                      onPress={startFeeFlip}
+                    >
+                      <Text style={styles.coinFlipRetryText}>Retenter ?</Text>
+                    </TouchableOpacity>
+                  </View>
+                )}
+              </View>
+            )}
           </View>
         )}
 
@@ -1035,6 +1176,156 @@ const styles = StyleSheet.create({
     color: '#00FF88',
     fontSize: 15,
     fontWeight: '900' as const,
+  },
+  coinFlipSection: {
+    marginTop: 16,
+    alignItems: 'center',
+    width: '100%',
+  },
+  coinFlipTrigger: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    gap: 8,
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderRadius: 14,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  coinFlipTriggerText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '700' as const,
+  },
+  coinFlipChoosing: {
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  coinFlipQuestion: {
+    color: '#FFF',
+    fontSize: 15,
+    fontWeight: '700' as const,
+  },
+  coinFlipChoices: {
+    flexDirection: 'row',
+    gap: 16,
+  },
+  coinFlipChoiceBtn: {
+    flex: 1,
+    backgroundColor: 'rgba(255, 140, 0, 0.12)',
+    borderRadius: 16,
+    paddingVertical: 18,
+    alignItems: 'center',
+    gap: 6,
+    borderWidth: 1.5,
+    borderColor: 'rgba(255, 140, 0, 0.3)',
+  },
+  coinFlipChoiceEmoji: {
+    fontSize: 28,
+  },
+  coinFlipChoiceText: {
+    color: '#FF8C00',
+    fontSize: 16,
+    fontWeight: '800' as const,
+    letterSpacing: 1,
+  },
+  coinFlipAnimArea: {
+    alignItems: 'center',
+    gap: 16,
+    paddingVertical: 12,
+  },
+  miniCoin: {
+    width: 70,
+    height: 70,
+    borderRadius: 35,
+    borderWidth: 3,
+    borderColor: '#FF8C00',
+    backgroundColor: '#1a1a1a',
+    overflow: 'hidden',
+    justifyContent: 'center',
+    alignItems: 'center',
+    shadowColor: '#FFD700',
+    shadowOffset: { width: 0, height: 4 },
+    shadowOpacity: 0.5,
+    shadowRadius: 12,
+    elevation: 8,
+  },
+  miniCoinImage: {
+    width: 54,
+    height: 54,
+    borderRadius: 27,
+  },
+  coinFlipFlippingText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  coinFlipResultArea: {
+    alignItems: 'center',
+    gap: 12,
+    width: '100%',
+  },
+  coinFlipWonBadge: {
+    backgroundColor: 'rgba(0, 255, 136, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: 'rgba(0, 255, 136, 0.3)',
+  },
+  coinFlipWonText: {
+    color: '#00FF88',
+    fontSize: 20,
+    fontWeight: '900' as const,
+  },
+  coinFlipResultDetail: {
+    color: 'rgba(255, 255, 255, 0.7)',
+    fontSize: 13,
+    textAlign: 'center' as const,
+  },
+  coinFlipFreeText: {
+    color: '#00FF88',
+    fontSize: 15,
+    fontWeight: '800' as const,
+    marginTop: 4,
+  },
+  coinFlipLostBadge: {
+    backgroundColor: 'rgba(220, 20, 60, 0.1)',
+    borderRadius: 16,
+    padding: 20,
+    alignItems: 'center',
+    gap: 6,
+    width: '100%',
+    borderWidth: 1.5,
+    borderColor: 'rgba(220, 20, 60, 0.3)',
+  },
+  coinFlipLostText: {
+    color: '#DC143C',
+    fontSize: 20,
+    fontWeight: '900' as const,
+  },
+  coinFlipLostFees: {
+    color: '#FF8C00',
+    fontSize: 14,
+    fontWeight: '700' as const,
+    marginTop: 4,
+  },
+  coinFlipRetry: {
+    backgroundColor: 'rgba(255, 215, 0, 0.1)',
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    borderRadius: 12,
+    borderWidth: 1,
+    borderColor: 'rgba(255, 215, 0, 0.3)',
+  },
+  coinFlipRetryText: {
+    color: '#FFD700',
+    fontSize: 14,
+    fontWeight: '700' as const,
   },
   amountHeader: {
     flexDirection: 'row',
