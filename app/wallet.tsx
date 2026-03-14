@@ -651,8 +651,9 @@ const styles = StyleSheet.create({
   },
   mainContent: {
     flex: 1,
-    paddingHorizontal: 24,
-    paddingTop: 12,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    justifyContent: 'space-between',
   },
   mainContentCompact: {
     paddingTop: 6,
@@ -660,10 +661,10 @@ const styles = StyleSheet.create({
   },
   balanceCompact: {
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 10,
     backgroundColor: '#0f0f0f',
     paddingHorizontal: 20,
-    paddingVertical: 14,
+    paddingVertical: 12,
     borderRadius: 16,
     borderWidth: 2,
     borderColor: 'rgba(255, 140, 0, 0.2)',
@@ -694,10 +695,10 @@ const styles = StyleSheet.create({
   },
   selectedAmountBox: {
     alignItems: 'center',
-    marginBottom: 14,
+    marginBottom: 10,
     backgroundColor: '#1a1a1a',
     paddingHorizontal: 18,
-    paddingVertical: 12,
+    paddingVertical: 10,
     borderRadius: 12,
     borderWidth: 2,
     borderColor: 'rgba(255, 140, 0, 0.3)',
@@ -742,9 +743,9 @@ const styles = StyleSheet.create({
   actionsContainer: {
     flexDirection: 'row',
     gap: 16,
-    paddingHorizontal: 16,
-    paddingTop: 12,
-    paddingBottom: 28,
+    paddingHorizontal: 20,
+    paddingTop: 8,
+    paddingBottom: 24,
     backgroundColor: '#000',
   },
   actionsHidden: {
@@ -869,7 +870,7 @@ const styles = StyleSheet.create({
   },
   tokensSection: {
     flex: 1,
-    marginBottom: 8,
+    marginBottom: 0,
   },
   tokensSectionCompact: {
     marginBottom: 4,
@@ -888,7 +889,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 16,
+    marginBottom: 12,
   },
   resetButton: {
     paddingHorizontal: 12,
@@ -930,8 +931,8 @@ const styles = StyleSheet.create({
     width: '24%',
   },
   tokenSquare: {
-    width: 170,
-    height: 135,
+    width: 200,
+    height: 150,
     backgroundColor: '#2a2a2a',
     borderRadius: 24,
     justifyContent: 'center',
@@ -960,10 +961,10 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   tokenCircle: {
-    width: 100,
-    height: 100,
+    width: 120,
+    height: 120,
     backgroundColor: '#2a2a2a',
-    borderRadius: 50,
+    borderRadius: 60,
     justifyContent: 'center',
     alignItems: 'center',
     borderWidth: 4,

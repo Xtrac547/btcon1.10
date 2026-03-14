@@ -3,7 +3,7 @@ import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, I
 const coinImage = require('../assets/images/btcon-icon.png');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft } from 'lucide-react-native';
+import { ArrowLeft, RotateCcw } from 'lucide-react-native';
 import { useState, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
 
@@ -99,7 +99,18 @@ export default function CoinFlipScreen() {
           <ArrowLeft color="#FF8C00" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pile ou Face</Text>
-        <View style={styles.placeholder} />
+        {coinResult ? (
+          <TouchableOpacity
+            style={styles.headerReplayButton}
+            onPress={flipCoin}
+            disabled={coinFlipping}
+            testID="replay-button"
+          >
+            <RotateCcw color="#FF8C00" size={20} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       <View style={styles.content}>
@@ -235,6 +246,16 @@ const styles = StyleSheet.create({
   },
   placeholder: {
     width: 48,
+  },
+  headerReplayButton: {
+    width: 48,
+    height: 48,
+    borderRadius: 24,
+    backgroundColor: '#0f0f0f',
+    justifyContent: 'center',
+    alignItems: 'center',
+    borderWidth: 1,
+    borderColor: 'rgba(255, 140, 0, 0.2)',
   },
   content: {
     flex: 1,

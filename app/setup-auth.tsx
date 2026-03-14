@@ -318,6 +318,8 @@ export default function SetupAuthScreen() {
             placeholder="••••••"
             placeholderTextColor="#444"
             autoFocus={true}
+            returnKeyType="done"
+            onSubmitEditing={handleConfirmPinSubmit}
           />
         </View>
 
