@@ -426,49 +426,39 @@ export default function WalletScreen() {
 
 
 
-      <View style={[styles.actionsContainer, !hasSelectedTokens && styles.actionsHidden]}>
+      {hasSelectedTokens && (
+        <View style={styles.actionsContainer}>
           <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: receiveButtonScale }] }]}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.receiveButton,
-                pressed && styles.actionButtonPressed,
-              ]}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.receiveButton]}
               onPress={handleReceive}
-              disabled={!hasSelectedTokens}
+              activeOpacity={0.85}
               testID="receive-button"
             >
               <View style={styles.iconContainer}>
                 <ArrowDownLeft color="#FFFFFF" size={28} strokeWidth={3} />
               </View>
               <Text style={styles.actionButtonText}>Recevoir</Text>
-              {hasSelectedTokens && (
-                <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
-              )}
-            </Pressable>
+              <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
+            </TouchableOpacity>
           </Animated.View>
 
           <Animated.View style={[styles.actionButtonWrapper, { transform: [{ scale: sendButtonScale }] }]}>
-            <Pressable
-              style={({ pressed }) => [
-                styles.actionButton,
-                styles.sendButton,
-                pressed && styles.actionButtonPressed,
-              ]}
+            <TouchableOpacity
+              style={[styles.actionButton, styles.sendButton]}
               onPress={handleSend}
-              disabled={!hasSelectedTokens}
+              activeOpacity={0.85}
               testID="send-button"
             >
               <View style={styles.iconContainer}>
                 <ArrowUpRight color="#FFFFFF" size={28} strokeWidth={3} />
               </View>
               <Text style={styles.actionButtonText}>Envoyer</Text>
-              {hasSelectedTokens && (
-                <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
-              )}
-            </Pressable>
+              <Text style={styles.actionButtonAmount}>{totalAmount.toLocaleString()}</Text>
+            </TouchableOpacity>
           </Animated.View>
         </View>
+      )}
 
       <Modal
         visible={showScanner}
