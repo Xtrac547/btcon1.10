@@ -10,6 +10,17 @@ interface BtcPriceData {
   change24h: number;
 }
 
+const fetchWithTimeout = async (url: string, timeoutMs = 8000): Promise<Response> => {
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url, { signal: controller.signal });
+    return res;
+  } finally {
+    clearTimeout(timer);
+  }
+};
+
 export const fetchBtcPrice = async (): Promise<BtcPriceData> => {
   const now = Date.now();
   if (now - lastFetch < CACHE_DURATION && cachedPrice > 0) {
@@ -20,14 +31,14 @@ export const fetchBtcPrice = async (): Promise<BtcPriceData> => {
     {
       name: 'Coinbase',
       fetchData: async (): Promise<BtcPriceData> => {
-        const spotRes = await fetch('https://api.coinbase.com/v2/prices/BTC-EUR/spot', { signal: AbortSignal.timeout(5000) });
+        const spotRes = await fetchWithTimeout('https://api.coinbase.com/v2/prices/BTC-EUR/spot');
         const spotData = await spotRes.json();
         const currentPrice = parseFloat(spotData?.data?.amount);
         if (!currentPrice || currentPrice <= 0) throw new Error('Invalid Coinbase price');
 
         let change24h = 0;
         try {
-          const statsRes = await fetch('https://api.exchange.coinbase.com/products/BTC-EUR/stats', { signal: AbortSignal.timeout(5000) });
+          const statsRes = await fetchWithTimeout('https://api.exchange.coinbase.com/products/BTC-EUR/stats');
           const stats = await statsRes.json();
           const open24h = parseFloat(stats?.open);
           if (open24h > 0) {
@@ -43,9 +54,8 @@ export const fetchBtcPrice = async (): Promise<BtcPriceData> => {
     {
       name: 'CoinGecko',
       fetchData: async (): Promise<BtcPriceData> => {
-        const res = await fetch(
-          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur&include_24hr_change=true',
-          { signal: AbortSignal.timeout(5000) }
+        const res = await fetchWithTimeout(
+          'https://api.coingecko.com/api/v3/simple/price?ids=bitcoin&vs_currencies=eur&include_24hr_change=true'
         );
         const data = await res.json();
         const price = data?.bitcoin?.eur as number;
@@ -57,7 +67,7 @@ export const fetchBtcPrice = async (): Promise<BtcPriceData> => {
     {
       name: 'Blockchain.com',
       fetchData: async (): Promise<BtcPriceData> => {
-        const res = await fetch('https://blockchain.info/ticker', { signal: AbortSignal.timeout(5000) });
+        const res = await fetchWithTimeout('https://blockchain.info/ticker');
         const data = await res.json();
         const price = data?.EUR?.last as number;
         if (!price || price <= 0) throw new Error('Invalid Blockchain price');
@@ -67,7 +77,7 @@ export const fetchBtcPrice = async (): Promise<BtcPriceData> => {
     {
       name: 'Mempool.space',
       fetchData: async (): Promise<BtcPriceData> => {
-        const res = await fetch('https://mempool.space/api/v1/prices', { signal: AbortSignal.timeout(5000) });
+        const res = await fetchWithTimeout('https://mempool.space/api/v1/prices');
         const data = await res.json();
         const price = data?.EUR as number;
         if (!price || price <= 0) throw new Error('Invalid Mempool price');
