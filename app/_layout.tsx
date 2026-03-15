@@ -45,6 +45,7 @@ function RootLayoutNav() {
       <Stack.Screen name="coin-flip" options={{ headerShown: false }} />
       <Stack.Screen name="following" options={{ headerShown: false }} />
       <Stack.Screen name="btc-price" options={{ headerShown: false }} />
+      <Stack.Screen name="history" options={{ headerShown: false }} />
     </Stack>
   );
 }
