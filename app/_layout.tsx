@@ -19,7 +19,13 @@ if (Platform.OS !== 'web') {
   SplashScreen.preventAutoHideAsync().catch(() => {});
 }
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: {
+    queries: {
+      retry: 2,
+    },
+  },
+});
 
 function RootLayoutNav() {
   return (
@@ -68,7 +74,7 @@ export default function RootLayout() {
       }
     };
     
-    initApp();
+    void initApp();
   }, []);
 
   return (
