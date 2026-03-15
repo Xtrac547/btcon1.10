@@ -1,11 +1,18 @@
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, Image } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, Image, ScrollView } from 'react-native';
 
 const coinImage = require('../assets/images/btcon-icon.png');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, RotateCcw } from 'lucide-react-native';
+import { ArrowLeft, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react-native';
 import { useState, useRef } from 'react';
 import * as Haptics from 'expo-haptics';
+
+interface FlipRecord {
+  id: number;
+  result: 'heads' | 'tails' | 'fallen';
+  label: string;
+  timestamp: Date;
+}
 
 export default function CoinFlipScreen() {
   const router = useRouter();
@@ -15,9 +22,12 @@ export default function CoinFlipScreen() {
   const [coinResult, setCoinResult] = useState<'heads' | 'tails' | 'fallen' | null>(null);
   const [showCoin, setShowCoin] = useState(true);
   const [_hasFlippedOnce, setHasFlippedOnce] = useState(false);
+  const [history, setHistory] = useState<FlipRecord[]>([]);
+  const [showHistory, setShowHistory] = useState(false);
   const coinRotation = useRef(new Animated.Value(0)).current;
   const coinPosition = useRef(new Animated.Value(0)).current;
   const coinOpacity = useRef(new Animated.Value(1)).current;
+  const flipCount = useRef(0);
 
   const flipCoin = () => {
     if (coinFlipping) return;
@@ -64,6 +74,8 @@ export default function CoinFlipScreen() {
         setCoinResult(result);
         setCoinFlipping(false);
         setShowCoin(false);
+        flipCount.current += 1;
+        setHistory(prev => [{ id: flipCount.current, result, label: 'TOMBÉE', timestamp: new Date() }, ...prev]);
         if (Platform.OS !== 'web') {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Warning);
         }
@@ -81,6 +93,9 @@ export default function CoinFlipScreen() {
         setCoinResult(result);
         setCoinFlipping(false);
         setShowCoin(true);
+        flipCount.current += 1;
+        const label = result === 'heads' ? 'PILE' : 'FACE';
+        setHistory(prev => [{ id: flipCount.current, result, label, timestamp: new Date() }, ...prev]);
         if (Platform.OS !== 'web') {
           void Haptics.notificationAsync(Haptics.NotificationFeedbackType.Success);
         }
@@ -99,18 +114,7 @@ export default function CoinFlipScreen() {
           <ArrowLeft color="#FF8C00" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pile ou Face</Text>
-        {coinResult ? (
-          <TouchableOpacity
-            style={styles.headerReplayButton}
-            onPress={flipCoin}
-            disabled={coinFlipping}
-            testID="replay-button"
-          >
-            <RotateCcw color="#FF8C00" size={20} />
-          </TouchableOpacity>
-        ) : (
-          <View style={styles.placeholder} />
-        )}
+        <View style={styles.placeholder} />
       </View>
 
       <View style={styles.content}>
@@ -196,19 +200,62 @@ export default function CoinFlipScreen() {
                 <Text style={styles.flipButtonText}>JOUER</Text>
               </TouchableOpacity>
             )}
-            
-
+            {coinResult && !coinFlipping && (
+              <TouchableOpacity
+                style={styles.replayButton}
+                onPress={flipCoin}
+                testID="replay-button"
+              >
+                <RotateCcw color="#FFF" size={18} style={{ marginRight: 8 }} />
+                <Text style={styles.replayButtonText}>REJOUER</Text>
+              </TouchableOpacity>
+            )}
           </View>
         </View>
 
-        <View style={styles.statsSection}>
-          <Text style={styles.statsTitle}>Comment jouer</Text>
-          <Text style={styles.statsText}>
-            Appuyez sur la pièce pour la lancer.{'\n'}
-            Le résultat est complètement aléatoire,{'\n'}
-            comme une vraie pièce !
-          </Text>
-        </View>
+        {history.length > 0 && (
+          <View style={styles.historySection}>
+            <TouchableOpacity
+              style={styles.historyHeader}
+              onPress={() => setShowHistory(prev => !prev)}
+              activeOpacity={0.7}
+            >
+              <Text style={styles.historyTitle}>Historique ({history.length})</Text>
+              {showHistory ? (
+                <ChevronUp color="#FF8C00" size={20} />
+              ) : (
+                <ChevronDown color="#FF8C00" size={20} />
+              )}
+            </TouchableOpacity>
+            {showHistory && (
+              <ScrollView style={styles.historyList} nestedScrollEnabled>
+                {history.map((record) => (
+                  <View key={record.id} style={styles.historyItem}>
+                    <View style={[
+                      styles.historyDot,
+                      record.result === 'fallen' ? styles.historyDotFallen : styles.historyDotNormal,
+                    ]} />
+                    <Text style={styles.historyLabel}>{record.label}</Text>
+                    <Text style={styles.historyTime}>
+                      {record.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                    </Text>
+                  </View>
+                ))}
+              </ScrollView>
+            )}
+          </View>
+        )}
+
+        {history.length === 0 && (
+          <View style={styles.statsSection}>
+            <Text style={styles.statsTitle}>Comment jouer</Text>
+            <Text style={styles.statsText}>
+              Appuyez sur la pièce pour la lancer.{'\n'}
+              Le résultat est complètement aléatoire,{'\n'}
+              comme une vraie pièce !
+            </Text>
+          </View>
+        )}
       </View>
     </View>
   );
@@ -419,16 +466,20 @@ const styles = StyleSheet.create({
     textAlign: 'center' as const,
   },
   replayButton: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
     backgroundColor: '#FF8C00',
     paddingHorizontal: 32,
     paddingVertical: 16,
     borderRadius: 16,
-    marginTop: 16,
+    marginTop: 12,
     shadowColor: '#FF8C00',
     shadowOffset: { width: 0, height: 4 },
     shadowOpacity: 0.4,
     shadowRadius: 12,
     elevation: 8,
+    width: 240,
   },
   replayButtonText: {
     color: '#FFF',
@@ -456,5 +507,56 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textAlign: 'center' as const,
   },
-
+  historySection: {
+    backgroundColor: '#0f0f0f',
+    borderRadius: 20,
+    borderWidth: 2,
+    borderColor: 'rgba(255, 140, 0, 0.2)',
+    overflow: 'hidden' as const,
+  },
+  historyHeader: {
+    flexDirection: 'row' as const,
+    justifyContent: 'space-between' as const,
+    alignItems: 'center' as const,
+    padding: 18,
+  },
+  historyTitle: {
+    color: '#FF8C00',
+    fontSize: 18,
+    fontWeight: '700' as const,
+  },
+  historyList: {
+    maxHeight: 200,
+    paddingHorizontal: 18,
+    paddingBottom: 12,
+  },
+  historyItem: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingVertical: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 255, 255, 0.06)',
+  },
+  historyDot: {
+    width: 10,
+    height: 10,
+    borderRadius: 5,
+    marginRight: 12,
+  },
+  historyDotNormal: {
+    backgroundColor: '#FF8C00',
+  },
+  historyDotFallen: {
+    backgroundColor: '#DC143C',
+  },
+  historyLabel: {
+    color: '#FFFFFF',
+    fontSize: 16,
+    fontWeight: '600' as const,
+    flex: 1,
+  },
+  historyTime: {
+    color: 'rgba(255, 255, 255, 0.4)',
+    fontSize: 13,
+  },
 });
