@@ -640,10 +640,8 @@ const styles = StyleSheet.create({
     backgroundColor: '#000000',
   },
   mainContent: {
-    flex: 1,
     paddingHorizontal: 20,
     paddingTop: 8,
-    justifyContent: 'flex-start',
   },
   mainContentCompact: {
     paddingTop: 6,
@@ -734,7 +732,7 @@ const styles = StyleSheet.create({
     flexDirection: 'row',
     gap: 16,
     paddingHorizontal: 20,
-    paddingTop: 12,
+    paddingTop: 16,
     paddingBottom: 24,
     backgroundColor: '#000',
   },
@@ -859,7 +857,6 @@ const styles = StyleSheet.create({
     letterSpacing: 0.5,
   },
   tokensSection: {
-    flex: 1,
     marginBottom: 0,
   },
   tokensSectionCompact: {
