@@ -4,7 +4,7 @@ import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
 import { useWallet } from '@/contexts/WalletContext';
 import { useNotifications } from '@/contexts/NotificationContext';
-import { ArrowUpRight, ArrowDownLeft, Settings, X, QrCode, Camera, Copy, RefreshCw, Coins, Send, TrendingUp } from 'lucide-react-native';
+import { ArrowUpRight, ArrowDownLeft, Settings, X, QrCode, Camera, Copy, RefreshCw, Coins, Send, TrendingUp, Clock } from 'lucide-react-native';
 import { useState, useMemo, useCallback, useEffect, useRef } from 'react';
 import * as Clipboard from 'expo-clipboard';
 
@@ -334,6 +334,13 @@ export default function WalletScreen() {
             testID="btc-price-button"
           >
             <TrendingUp color="#FF8C00" size={20} />
+          </TouchableOpacity>
+          <TouchableOpacity
+            style={styles.topButton}
+            onPress={() => router.push('/history')}
+            testID="history-button"
+          >
+            <Clock color="#FF8C00" size={20} />
           </TouchableOpacity>
         </View>
       </View>
