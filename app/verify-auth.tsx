@@ -4,9 +4,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ActivityIndicator,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -272,6 +274,7 @@ export default function VerifyAuthScreen() {
                 placeholder="••••••"
                 placeholderTextColor="#444"
                 autoFocus={true}
+                returnKeyType="done"
               />
             </View>
 
@@ -319,6 +322,7 @@ export default function VerifyAuthScreen() {
                 placeholder="••••••"
                 placeholderTextColor="#444"
                 autoFocus={true}
+                returnKeyType="done"
               />
             </View>
 
@@ -343,6 +347,7 @@ export default function VerifyAuthScreen() {
 
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
     <View style={styles.container}>
       <View style={styles.backgroundGlow}>
         <View style={[styles.glowCircle, { top: -80, right: -80 }]} />
@@ -471,6 +476,7 @@ export default function VerifyAuthScreen() {
         )}
       </View>
     </View>
+    </TouchableWithoutFeedback>
   );
 }
 

@@ -4,9 +4,11 @@ import {
   Text,
   TextInput,
   TouchableOpacity,
+  TouchableWithoutFeedback,
   StyleSheet,
   ActivityIndicator,
   Platform,
+  Keyboard,
 } from 'react-native';
 import { useRouter } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
@@ -247,6 +249,7 @@ export default function SetupAuthScreen() {
 
   if (step === 'enter-pin') {
     return (
+      <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
       <View style={styles.container}>
         <View style={styles.backgroundGlow}>
           <View style={[styles.glowCircle, { top: -80, right: -80 }]} />
@@ -289,10 +292,12 @@ export default function SetupAuthScreen() {
           </View>
         </View>
       </View>
+      </TouchableWithoutFeedback>
     );
   }
 
   return (
+    <TouchableWithoutFeedback onPress={Keyboard.dismiss} accessible={false}>
     <View style={styles.container}>
       <View style={styles.backgroundGlow}>
         <View style={[styles.glowCircle, { top: -80, right: -80 }]} />
@@ -337,6 +342,7 @@ export default function SetupAuthScreen() {
         </View>
       </View>
     </View>
+    </TouchableWithoutFeedback>
   );
 }
 
