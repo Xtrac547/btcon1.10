@@ -1,11 +1,13 @@
-import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, Image, ScrollView } from 'react-native';
+import { View, Text, StyleSheet, TouchableOpacity, Animated, Easing, Platform, Image, ScrollView, PanResponder, Dimensions } from 'react-native';
 
 const coinImage = require('../assets/images/btcon-icon.png');
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { useRouter } from 'expo-router';
-import { ArrowLeft, RotateCcw, ChevronUp, ChevronDown } from 'lucide-react-native';
-import { useState, useRef } from 'react';
+import { ArrowLeft, RotateCcw, ChevronDown, History } from 'lucide-react-native';
+import { useState, useRef, useCallback } from 'react';
 import * as Haptics from 'expo-haptics';
+
+const SCREEN_HEIGHT = Dimensions.get('window').height;
 
 interface FlipRecord {
   id: number;
@@ -23,11 +25,94 @@ export default function CoinFlipScreen() {
   const [showCoin, setShowCoin] = useState(true);
   const [_hasFlippedOnce, setHasFlippedOnce] = useState(false);
   const [history, setHistory] = useState<FlipRecord[]>([]);
-  const [showHistory, setShowHistory] = useState(false);
+  const [historyOpen, setHistoryOpen] = useState(false);
   const coinRotation = useRef(new Animated.Value(0)).current;
   const coinPosition = useRef(new Animated.Value(0)).current;
   const coinOpacity = useRef(new Animated.Value(1)).current;
   const flipCount = useRef(0);
+
+  const drawerHeight = SCREEN_HEIGHT * 0.55;
+  const drawerTranslateY = useRef(new Animated.Value(-drawerHeight)).current;
+  const drawerOpenRef = useRef(false);
+
+  const openDrawer = useCallback(() => {
+    setHistoryOpen(true);
+    drawerOpenRef.current = true;
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    Animated.spring(drawerTranslateY, {
+      toValue: 0,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start();
+  }, [drawerTranslateY]);
+
+  const closeDrawer = useCallback(() => {
+    if (Platform.OS !== 'web') {
+      void Haptics.impactAsync(Haptics.ImpactFeedbackStyle.Light);
+    }
+    Animated.spring(drawerTranslateY, {
+      toValue: -drawerHeight,
+      useNativeDriver: true,
+      tension: 65,
+      friction: 11,
+    }).start(() => {
+      setHistoryOpen(false);
+      drawerOpenRef.current = false;
+    });
+  }, [drawerTranslateY, drawerHeight]);
+
+  const panResponder = useRef(
+    PanResponder.create({
+      onStartShouldSetPanResponder: () => false,
+      onMoveShouldSetPanResponder: (_, gestureState) => {
+        const { dy, dx } = gestureState;
+        if (Math.abs(dx) > Math.abs(dy)) return false;
+        if (!drawerOpenRef.current && dy > 15) return true;
+        if (drawerOpenRef.current && dy < -15) return true;
+        return false;
+      },
+      onPanResponderMove: (_, gestureState) => {
+        const { dy } = gestureState;
+        if (!drawerOpenRef.current) {
+          const clampedY = Math.max(-drawerHeight, Math.min(0, -drawerHeight + dy));
+          drawerTranslateY.setValue(clampedY);
+        } else {
+          const clampedY = Math.max(-drawerHeight, Math.min(0, dy));
+          drawerTranslateY.setValue(clampedY);
+        }
+      },
+      onPanResponderRelease: (_, gestureState) => {
+        const { dy, vy } = gestureState;
+        const threshold = drawerHeight * 0.3;
+        if (!drawerOpenRef.current) {
+          if (dy > threshold || vy > 0.5) {
+            openDrawer();
+          } else {
+            Animated.spring(drawerTranslateY, {
+              toValue: -drawerHeight,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }).start();
+          }
+        } else {
+          if (dy < -threshold || vy < -0.5) {
+            closeDrawer();
+          } else {
+            Animated.spring(drawerTranslateY, {
+              toValue: 0,
+              useNativeDriver: true,
+              tension: 65,
+              friction: 11,
+            }).start();
+          }
+        }
+      },
+    })
+  ).current;
 
   const flipCoin = () => {
     if (coinFlipping) return;
@@ -103,8 +188,14 @@ export default function CoinFlipScreen() {
     }
   };
 
+  const overlayOpacity = drawerTranslateY.interpolate({
+    inputRange: [-drawerHeight, 0],
+    outputRange: [0, 0.6],
+    extrapolate: 'clamp',
+  });
+
   return (
-    <View style={[styles.container, { paddingTop: insets.top }]}>
+    <View style={[styles.container, { paddingTop: insets.top }]} {...panResponder.panHandlers}>
       <View style={styles.header}>
         <TouchableOpacity
           style={styles.backButton}
@@ -114,7 +205,16 @@ export default function CoinFlipScreen() {
           <ArrowLeft color="#FF8C00" size={24} />
         </TouchableOpacity>
         <Text style={styles.headerTitle}>Pile ou Face</Text>
-        <View style={styles.placeholder} />
+        {history.length > 0 ? (
+          <TouchableOpacity
+            style={styles.backButton}
+            onPress={historyOpen ? closeDrawer : openDrawer}
+          >
+            <History color="#FF8C00" size={22} />
+          </TouchableOpacity>
+        ) : (
+          <View style={styles.placeholder} />
+        )}
       </View>
 
       <View style={styles.content}>
@@ -213,39 +313,6 @@ export default function CoinFlipScreen() {
           </View>
         </View>
 
-        {history.length > 0 && (
-          <View style={styles.historySection}>
-            <TouchableOpacity
-              style={styles.historyHeader}
-              onPress={() => setShowHistory(prev => !prev)}
-              activeOpacity={0.7}
-            >
-              <Text style={styles.historyTitle}>Historique ({history.length})</Text>
-              {showHistory ? (
-                <ChevronUp color="#FF8C00" size={20} />
-              ) : (
-                <ChevronDown color="#FF8C00" size={20} />
-              )}
-            </TouchableOpacity>
-            {showHistory && (
-              <ScrollView style={styles.historyList} nestedScrollEnabled>
-                {history.map((record) => (
-                  <View key={record.id} style={styles.historyItem}>
-                    <View style={[
-                      styles.historyDot,
-                      record.result === 'fallen' ? styles.historyDotFallen : styles.historyDotNormal,
-                    ]} />
-                    <Text style={styles.historyLabel}>{record.label}</Text>
-                    <Text style={styles.historyTime}>
-                      {record.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
-                    </Text>
-                  </View>
-                ))}
-              </ScrollView>
-            )}
-          </View>
-        )}
-
         {history.length === 0 && (
           <View style={styles.statsSection}>
             <Text style={styles.statsTitle}>Comment jouer</Text>
@@ -256,7 +323,59 @@ export default function CoinFlipScreen() {
             </Text>
           </View>
         )}
+
+        {history.length > 0 && !historyOpen && (
+          <View style={styles.swipeHint}>
+            <ChevronDown color="rgba(255, 140, 0, 0.5)" size={18} />
+            <Text style={styles.swipeHintText}>Glissez vers le bas pour l'historique</Text>
+          </View>
+        )}
       </View>
+
+      {historyOpen && (
+        <Animated.View
+          style={[styles.drawerOverlay, { opacity: overlayOpacity }]}
+          pointerEvents={historyOpen ? 'auto' : 'none'}
+        >
+          <TouchableOpacity style={{ flex: 1 }} activeOpacity={1} onPress={closeDrawer} />
+        </Animated.View>
+      )}
+
+      <Animated.View
+        style={[
+          styles.drawer,
+          {
+            height: drawerHeight,
+            paddingTop: insets.top,
+            transform: [{ translateY: drawerTranslateY }],
+          },
+        ]}
+      >
+        <View style={styles.drawerHandleContainer}>
+          <View style={styles.drawerHandle} />
+        </View>
+        <View style={styles.drawerHeader}>
+          <History color="#FF8C00" size={20} />
+          <Text style={styles.drawerTitle}>Historique ({history.length})</Text>
+          <TouchableOpacity onPress={closeDrawer} style={styles.drawerCloseBtn}>
+            <Text style={styles.drawerCloseBtnText}>Fermer</Text>
+          </TouchableOpacity>
+        </View>
+        <ScrollView style={styles.drawerList} showsVerticalScrollIndicator={false}>
+          {history.map((record) => (
+            <View key={record.id} style={styles.historyItem}>
+              <View style={[
+                styles.historyDot,
+                record.result === 'fallen' ? styles.historyDotFallen : styles.historyDotNormal,
+              ]} />
+              <Text style={styles.historyLabel}>{record.label}</Text>
+              <Text style={styles.historyTime}>
+                {record.timestamp.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+              </Text>
+            </View>
+          ))}
+        </ScrollView>
+      </Animated.View>
     </View>
   );
 }
@@ -507,28 +626,82 @@ const styles = StyleSheet.create({
     letterSpacing: 2,
     textAlign: 'center' as const,
   },
-  historySection: {
-    backgroundColor: '#0f0f0f',
-    borderRadius: 20,
-    borderWidth: 2,
-    borderColor: 'rgba(255, 140, 0, 0.2)',
-    overflow: 'hidden' as const,
+  drawerOverlay: {
+    ...StyleSheet.absoluteFillObject,
+    backgroundColor: '#000',
+    zIndex: 90,
   },
-  historyHeader: {
-    flexDirection: 'row' as const,
-    justifyContent: 'space-between' as const,
+  drawer: {
+    position: 'absolute' as const,
+    top: 0,
+    left: 0,
+    right: 0,
+    backgroundColor: '#0a0a0a',
+    zIndex: 100,
+    borderBottomLeftRadius: 24,
+    borderBottomRightRadius: 24,
+    borderBottomWidth: 2,
+    borderLeftWidth: 1,
+    borderRightWidth: 1,
+    borderColor: 'rgba(255, 140, 0, 0.3)',
+    shadowColor: '#FF8C00',
+    shadowOffset: { width: 0, height: 8 },
+    shadowOpacity: 0.3,
+    shadowRadius: 16,
+    elevation: 20,
+  },
+  drawerHandleContainer: {
     alignItems: 'center' as const,
-    padding: 18,
+    paddingTop: 8,
+    paddingBottom: 4,
   },
-  historyTitle: {
+  drawerHandle: {
+    width: 40,
+    height: 4,
+    borderRadius: 2,
+    backgroundColor: 'rgba(255, 140, 0, 0.4)',
+  },
+  drawerHeader: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    paddingHorizontal: 20,
+    paddingVertical: 14,
+    borderBottomWidth: 1,
+    borderBottomColor: 'rgba(255, 140, 0, 0.15)',
+  },
+  drawerTitle: {
     color: '#FF8C00',
     fontSize: 18,
     fontWeight: '700' as const,
+    marginLeft: 10,
+    flex: 1,
   },
-  historyList: {
-    maxHeight: 200,
-    paddingHorizontal: 18,
-    paddingBottom: 12,
+  drawerCloseBtn: {
+    paddingHorizontal: 14,
+    paddingVertical: 6,
+    borderRadius: 12,
+    backgroundColor: 'rgba(255, 140, 0, 0.12)',
+  },
+  drawerCloseBtnText: {
+    color: '#FF8C00',
+    fontSize: 14,
+    fontWeight: '600' as const,
+  },
+  drawerList: {
+    flex: 1,
+    paddingHorizontal: 20,
+  },
+  swipeHint: {
+    flexDirection: 'row' as const,
+    alignItems: 'center' as const,
+    justifyContent: 'center' as const,
+    paddingVertical: 12,
+    gap: 6,
+  },
+  swipeHintText: {
+    color: 'rgba(255, 140, 0, 0.5)',
+    fontSize: 13,
+    fontWeight: '500' as const,
   },
   historyItem: {
     flexDirection: 'row' as const,
