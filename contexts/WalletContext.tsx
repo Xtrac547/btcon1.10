@@ -1,16 +1,31 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import createContextHook from '@nkzw/create-context-hook';
-import * as bip39 from 'bip39';
-import { BIP32Factory } from 'bip32';
-import * as bitcoin from 'bitcoinjs-lib';
-import * as ecc from '@bitcoinerlab/secp256k1';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import * as SecureStore from 'expo-secure-store';
 import { Platform } from 'react-native';
 import { EsploraService, UTXO } from '@/services/esplora';
 
-bitcoin.initEccLib(ecc);
-const bip32 = BIP32Factory(ecc);
+let _bitcoin: typeof import('bitcoinjs-lib') | null = null;
+let _bip39: typeof import('bip39') | null = null;
+let _bip32: ReturnType<typeof import('bip32').BIP32Factory> | null = null;
+let _eccInitialized = false;
+
+const getCryptoLibs = () => {
+  if (!_bitcoin) {
+    _bitcoin = require('bitcoinjs-lib');
+  }
+  if (!_bip39) {
+    _bip39 = require('bip39');
+  }
+  if (!_eccInitialized) {
+    const ecc = require('@bitcoinerlab/secp256k1');
+    _bitcoin!.initEccLib(ecc);
+    const { BIP32Factory } = require('bip32');
+    _bip32 = BIP32Factory(ecc);
+    _eccInitialized = true;
+  }
+  return { bitcoin: _bitcoin!, bip39: _bip39!, bip32: _bip32! };
+};
 
 const STORAGE_KEYS = {
   MNEMONIC: 'btcon_mnemonic',
@@ -34,6 +49,67 @@ interface WalletState {
   transactions: any[];
 }
 
+const secureStorageAvailable = Platform.OS !== 'web';
+
+const storeSecurely = async (key: string, value: string) => {
+  if (secureStorageAvailable) {
+    await SecureStore.setItemAsync(key, value);
+  } else {
+    const encrypted = btoa(value);
+    await AsyncStorage.setItem(key, encrypted);
+  }
+};
+
+const getSecurely = async (key: string): Promise<string | null> => {
+  if (secureStorageAvailable) {
+    return await SecureStore.getItemAsync(key);
+  } else {
+    const encrypted = await AsyncStorage.getItem(key);
+    if (encrypted) {
+      try {
+        return atob(encrypted);
+      } catch {
+        return null;
+      }
+    }
+    return null;
+  }
+};
+
+const deleteSecurely = async (key: string) => {
+  if (secureStorageAvailable) {
+    await SecureStore.deleteItemAsync(key);
+  } else {
+    await AsyncStorage.removeItem(key);
+  }
+};
+
+const getNetwork = (isTestnet: boolean) => {
+  const { bitcoin } = getCryptoLibs();
+  return isTestnet ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
+};
+
+const deriveAddressFromMnemonic = (mnemonic: string, isTestnet: boolean): string => {
+  const { bitcoin, bip39, bip32 } = getCryptoLibs();
+  const seed = bip39.mnemonicToSeedSync(mnemonic);
+  const network = getNetwork(isTestnet);
+  const root = bip32.fromSeed(seed, network);
+
+  const path = isTestnet ? "m/84'/1'/0'/0/0" : "m/84'/0'/0'/0/0";
+  const child = root.derivePath(path);
+
+  const { address } = bitcoin.payments.p2wpkh({
+    pubkey: child.publicKey,
+    network,
+  });
+
+  if (!address) {
+    throw new Error('Failed to derive address');
+  }
+
+  return address;
+};
+
 export const [WalletProvider, useWallet] = createContextHook(() => {
   const [state, setState] = useState<WalletState>({
     mnemonic: null,
@@ -48,66 +124,8 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
 
   const [esploraService] = useState(() => new EsploraService(false));
 
-  const secureStorageAvailable = Platform.OS !== 'web';
-
-  const storeSecurely = async (key: string, value: string) => {
-    if (secureStorageAvailable) {
-      await SecureStore.setItemAsync(key, value);
-    } else {
-      const encrypted = btoa(value);
-      await AsyncStorage.setItem(key, encrypted);
-    }
-  };
-
-  const getSecurely = async (key: string): Promise<string | null> => {
-    if (secureStorageAvailable) {
-      return await SecureStore.getItemAsync(key);
-    } else {
-      const encrypted = await AsyncStorage.getItem(key);
-      if (encrypted) {
-        try {
-          return atob(encrypted);
-        } catch {
-          return null;
-        }
-      }
-      return null;
-    }
-  };
-
-  const deleteSecurely = async (key: string) => {
-    if (secureStorageAvailable) {
-      await SecureStore.deleteItemAsync(key);
-    } else {
-      await AsyncStorage.removeItem(key);
-    }
-  };
-
-  const getNetwork = (isTestnet: boolean) => {
-    return isTestnet ? bitcoin.networks.testnet : bitcoin.networks.bitcoin;
-  };
-
-  const deriveAddressFromMnemonic = (mnemonic: string, isTestnet: boolean): string => {
-    const seed = bip39.mnemonicToSeedSync(mnemonic);
-    const network = getNetwork(isTestnet);
-    const root = bip32.fromSeed(seed, network);
-    
-    const path = isTestnet ? "m/84'/1'/0'/0/0" : "m/84'/0'/0'/0/0";
-    const child = root.derivePath(path);
-    
-    const { address } = bitcoin.payments.p2wpkh({
-      pubkey: child.publicKey,
-      network,
-    });
-
-    if (!address) {
-      throw new Error('Failed to derive address');
-    }
-
-    return address;
-  };
-
-  const createWallet = async (): Promise<string> => {
+  const createWallet = useCallback(async (): Promise<string> => {
+    const { bip39 } = getCryptoLibs();
     const mnemonic = bip39.generateMnemonic(128);
     const address = deriveAddressFromMnemonic(mnemonic, state.isTestnet);
 
@@ -122,41 +140,7 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
     }));
 
     return mnemonic;
-  };
-
-  const restoreWallet = async (mnemonic: string): Promise<void> => {
-    if (!bip39.validateMnemonic(mnemonic)) {
-      throw new Error('Invalid mnemonic phrase');
-    }
-
-    const address = deriveAddressFromMnemonic(mnemonic, state.isTestnet);
-
-    await storeSecurely(STORAGE_KEYS.MNEMONIC, mnemonic);
-    await AsyncStorage.setItem(STORAGE_KEYS.HAS_WALLET, 'true');
-
-    setState(prev => ({
-      ...prev,
-      mnemonic,
-      address,
-      hasWallet: true,
-    }));
-
-    await refreshBalance();
-  };
-
-  const deleteWallet = async (): Promise<void> => {
-    await deleteSecurely(STORAGE_KEYS.MNEMONIC);
-    await AsyncStorage.removeItem(STORAGE_KEYS.HAS_WALLET);
-
-    setState(prev => ({
-      ...prev,
-      mnemonic: null,
-      address: null,
-      balance: 0,
-      utxos: [],
-      hasWallet: false,
-    }));
-  };
+  }, [state.isTestnet]);
 
   const refreshBalance = useCallback(async () => {
     if (!state.address) return;
@@ -179,7 +163,42 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
     }
   }, [state.address, esploraService]);
 
-  const switchNetwork = async (isTestnet: boolean) => {
+  const restoreWallet = useCallback(async (mnemonic: string): Promise<void> => {
+    const { bip39 } = getCryptoLibs();
+    if (!bip39.validateMnemonic(mnemonic)) {
+      throw new Error('Invalid mnemonic phrase');
+    }
+
+    const address = deriveAddressFromMnemonic(mnemonic, state.isTestnet);
+
+    await storeSecurely(STORAGE_KEYS.MNEMONIC, mnemonic);
+    await AsyncStorage.setItem(STORAGE_KEYS.HAS_WALLET, 'true');
+
+    setState(prev => ({
+      ...prev,
+      mnemonic,
+      address,
+      hasWallet: true,
+    }));
+
+    await refreshBalance();
+  }, [state.isTestnet, refreshBalance]);
+
+  const deleteWallet = useCallback(async (): Promise<void> => {
+    await deleteSecurely(STORAGE_KEYS.MNEMONIC);
+    await AsyncStorage.removeItem(STORAGE_KEYS.HAS_WALLET);
+
+    setState(prev => ({
+      ...prev,
+      mnemonic: null,
+      address: null,
+      balance: 0,
+      utxos: [],
+      hasWallet: false,
+    }));
+  }, []);
+
+  const switchNetwork = useCallback(async (isTestnet: boolean) => {
     esploraService.setNetwork(isTestnet);
     await AsyncStorage.setItem(STORAGE_KEYS.IS_TESTNET, isTestnet ? 'true' : 'false');
 
@@ -197,9 +216,9 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
 
       setTimeout(() => refreshBalance(), 100);
     }
-  };
+  }, [state.mnemonic, esploraService, refreshBalance]);
 
-  const signAndBroadcastTransaction = async (
+  const signAndBroadcastTransaction = useCallback(async (
     toAddress: string,
     amountSats: number,
     feeRate?: number
@@ -213,6 +232,7 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
       throw new Error('No UTXOs available');
     }
 
+    const { bitcoin, bip39, bip32 } = getCryptoLibs();
     const network = getNetwork(state.isTestnet);
     const psbt = new bitcoin.Psbt({ network });
 
@@ -230,7 +250,7 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
 
     let inputSum = 0;
     const selectedUtxos: UTXO[] = [];
-    
+
     for (const utxo of utxos) {
       const tx = await esploraService.getTransaction(utxo.txid);
       if (!tx) continue;
@@ -298,9 +318,9 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
     setTimeout(() => refreshBalance(), 2000);
 
     return txid;
-  };
+  }, [state.mnemonic, state.address, state.isTestnet, esploraService, refreshBalance]);
 
-  const loadWallet = async () => {
+  const loadWallet = useCallback(async () => {
     try {
       const hasWallet = await AsyncStorage.getItem(STORAGE_KEYS.HAS_WALLET);
       const isTestnetStr = await AsyncStorage.getItem(STORAGE_KEYS.IS_TESTNET);
@@ -310,7 +330,7 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
 
       if (hasWallet === 'true') {
         const mnemonic = await getSecurely(STORAGE_KEYS.MNEMONIC);
-        
+
         if (mnemonic) {
           const address = deriveAddressFromMnemonic(mnemonic, isTestnet);
 
@@ -322,7 +342,7 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
             hasWallet: true,
             isLoading: false,
           }));
-          
+
           setTimeout(async () => {
             try {
               const utxos = await esploraService.getAddressUTXOs(address);
@@ -351,13 +371,13 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
         isLoading: false,
       }));
     }
-  };
+  }, [esploraService]);
 
   useEffect(() => {
-    loadWallet();
-  }, []);
+    void loadWallet();
+  }, [loadWallet]);
 
-  return {
+  return useMemo(() => ({
     ...state,
     createWallet,
     restoreWallet,
@@ -366,5 +386,5 @@ export const [WalletProvider, useWallet] = createContextHook(() => {
     switchNetwork,
     signAndBroadcastTransaction,
     esploraService,
-  };
+  }), [state, createWallet, restoreWallet, deleteWallet, refreshBalance, switchNetwork, signAndBroadcastTransaction, esploraService]);
 });
